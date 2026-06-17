@@ -6,7 +6,7 @@ def get_sac_agent(args,config, env, chkpt_dir=None,p_name="None",ID='First'):
     mode = config['Experiment']['mode']
     
     buffer_max_size = config['Experiment'][mode]['buffer_memory_size']
-    update_interval = config['Experiment'][mode]['games_per_block']
+    update_interval = config['Experiment'][mode]['train_games_per_block']
     scale = config['Experiment'][mode]['reward_scale']
     
     if config['game']['agent_only']:

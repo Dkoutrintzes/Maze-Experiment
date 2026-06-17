@@ -12,7 +12,7 @@ def get_game_args():
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--tau", type=float, default=0.005)
     parser.add_argument("--alpha", type=float, default=0.05)
-    parser.add_argument("--auto-alpha", action="store_true", default=False)
+    parser.add_argument("--auto-alpha", action="store_true", default=True)
     parser.add_argument("--alpha-lr", type=float, default=0.001)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--hidden-size", type=int, default=[32, 32])
@@ -31,8 +31,8 @@ def get_game_args():
     parser.add_argument('--entropy-penalty-beta',type=float,default=0.5)
 
 
-    parser.add_argument('--buffer-size', type=int, default=2500)
-    parser.add_argument('--update-target-every', type=int, default=10)
+    parser.add_argument('--buffer-size', type=int, default=10000)
+    parser.add_argument('--update-target-every', type=int, default=1)
     parser.add_argument('--load-model', type=str, default='rl_models/Initial/')
 
     parser.add_argument('--ere', action='store_true', default=False)

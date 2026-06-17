@@ -66,7 +66,8 @@ Experiment:
 
   no_tl:
     max_blocks: 1  # max training games per experiment
-    games_per_block: 5
+    train_games_per_block: 5
+    test_games_per_block: 5
     test_block: False
     training_block: False
     extra_test_block: True

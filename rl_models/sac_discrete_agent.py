@@ -188,7 +188,7 @@ class DiscreteSACAgent:
         #     print("Q2 loss: ", q2_loss)
         #     print("Alpha: ", self.alpha)
         self.step += 1
-        if self.args.update_target_every % self.step == 0:
+        if self.step % self.args.update_target_every == 0:
             self.soft_update_target()
             
         return  policy_loss.item(), q1_loss.item(), q2_loss.item(), self.log_alpha.exp().item()

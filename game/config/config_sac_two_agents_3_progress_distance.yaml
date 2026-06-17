@@ -1,0 +1,80 @@
+game:
+    discrete_input: False # True for Discrete or False for Continuous human input
+
+    test_model: False # True if no training happens
+    checkpoint_name: "sac_20201216_17-25-51"
+    load_checkpoint: False # True if loading stored model
+    second_human: False # False if playing with RL agent
+    agent_only: False # True if playing only the RL agent (no human-in-the-loop)
+    verbose: True # Used for logging
+    save: True # Save models and logs
+    human_assist: False
+    human_only: False
+    two_humans: False
+
+    # === Reward function (maze3D_new/Maze3DEnvRemote.py) ===
+    # 3. Progress Distance
+    reward_function: progress_distance
+    reward_params:
+        goal_reward: 10.0
+        reward_scale: 8.0
+        time_step_penalty: -1.5
+
+    # input speed as translated by the game
+    human_speed: 50
+    agent_speed: 50
+    discrete_angle_change: 3
+
+    # position of the goal on the board
+    goal: "left_down" # "left_down" "left_up" "right_down"
+
+SAC:
+  # SAC parameters (discrete SAC)
+  discrete: True
+  layer1_size: 32   # hidden dims [32, 32]  (~ qmix.hidden_dims)
+  layer2_size: 32
+  batch_size: 64    # ~ qmix.batch_size
+  gamma: 0.99
+  tau: 0.005        # soft target update (SAC has no hard target-update mode)
+  alpha: 0.0001     # actor learning rate  (~ qmix.learning_rate)
+  beta: 0.0001      # critic learning rate (~ qmix.learning_rate)
+  target_entropy_ratio: 0.4
+  model_name: two_agents_progress_distance
+  freeze_agent: False
+  reward_function: Shafti   # legacy SAC field, unused by the env reward path
+  chkpt: rl_models/Saved_models/
+  load_checkpoint: False
+  load_file: rl_models/Initial/
+
+  freeze_second_agent: False
+  load_second_agent: False
+  load_second_file: rl_models/Initial/
+
+
+Experiment:
+  start_with_testing_random_agent: True
+  online_updates: False
+  test_interval: 10
+  agent: sac
+  scheduling: normal
+
+  mode: no_tl_two_agents
+
+  no_tl_two_agents:
+    max_blocks: 10          # ~ experiment.max_blocks
+    train_games_per_block: 50  # ~ experiment.games_per_block
+    test_games_per_block: 5    # ~ experiment.test_games_per_block
+    max_duration: 40        # ~ experiment.max_duration (sec per game)
+    buffer_memory_size: 10000 # ~ experiment.buffer_memory_size
+    action_duration: 0.2
+    learn_every_n_games: 10
+    updates_per_ogu: 200    # ~ experiment.update_cycles (offline grad updates)
+    reward_scale: 1         # SAC reward normalization; 1 = use env reward as-is
+    log_interval: 10
+
+
+GUI:
+  start_up_screen_display_duration: 5
+  timeout_screen_display_duration: 3
+  goal_screen_display_duration: 3
+  popup_window_time: 3

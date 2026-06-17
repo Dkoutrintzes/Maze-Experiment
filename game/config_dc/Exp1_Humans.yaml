@@ -39,7 +39,8 @@ Experiment:
 
   human:
     max_blocks: 3  # max training games per experiment
-    games_per_block:  5
+    train_games_per_block: 5
+    test_games_per_block: 5
     max_duration: 40  # max duration per game in seconds
     buffer_memory_size: 3500
     action_duration: 0.2 # Time duration in sec between consecutive RL agent actions

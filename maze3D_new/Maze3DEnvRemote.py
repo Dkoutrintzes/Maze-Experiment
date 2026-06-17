@@ -1,3 +1,4 @@
+import inspect
 import random
 import time
 import traceback
@@ -8,15 +9,181 @@ import requests as requests
 from game.game_utils import get_config
 
 
-def reward_function_timeout_penalty(goal_reached, timedout):
-    # for every timestep -1
-    # timed out -50
-    # reach goal +100
+# ---------------------------------------------------------------------------
+# Reward configuration and helpers
+# ---------------------------------------------------------------------------
+# `distance_from_goal` is provided directly by the Unity environment in the
+# step response (res['distance_from_goal']); it is not computed here.
+#
+# Each reward function accepts its tuning parameters as keyword arguments whose
+# names match the config keys under `game -> reward_params` (which mirror the
+# `experiment.*` fields of the reference QMIX implementation). compute_reward()
+# forwards only the parameters a given reward function actually accepts.
+
+# Default reward magnitudes (used when a param is not set in the config).
+GOAL_REWARD = 10
+TIME_STEP_PENALTY = -1
+
+# Per-episode state shared by the progress-based reward functions.
+# Call reset_reward_state() at the start of every episode (e.g. in reset()).
+_prev_distance = None
+_stall_counter = 0
+
+
+def reset_reward_state():
+    """Clear the state used by the progress-based reward functions."""
+    global _prev_distance, _stall_counter
+    _prev_distance = None
+    _stall_counter = 0
+
+
+def get_ball_speed(observation):
+    """Ball speed = magnitude of its velocity. observation[2:4] = (vx, vy)."""
+    vx, vy = observation[2], observation[3]
+    return (vx ** 2 + vy ** 2) ** 0.5
+
+
+def reward_function_timeout_penalty(goal_reached, timedout,
+                                    goal_reward=GOAL_REWARD,
+                                    time_step_penalty=TIME_STEP_PENALTY):
+    # "Simple" reward: goal_reward on success, a constant penalty otherwise.
     if goal_reached and not timedout:
-        return 10
+        return goal_reward
+    return time_step_penalty
+
+
+def reward_function_goal_distance(goal_reached, timedout, distance_from_goal,
+                                  goal_reward=GOAL_REWARD,
+                                  time_step_penalty=TIME_STEP_PENALTY,
+                                  reward_scale=-0.01):
+    # Reward reaching the goal / penalize timeout, otherwise shape the reward
+    # by the (scaled) distance from the goal.
+    if goal_reached and not timedout:
+        return goal_reward
     if timedout:
-        return -1
-    return -1
+        return time_step_penalty
+    return reward_scale * abs(distance_from_goal)
+
+
+def reward_function_progress_distance(goal_reached, timedout, distance_from_goal,
+                                      goal_reward=GOAL_REWARD,
+                                      time_step_penalty=TIME_STEP_PENALTY,
+                                      reward_scale=1.0):
+    # Reward the progress made towards the goal since the previous step.
+    global _prev_distance
+    if goal_reached and not timedout:
+        reset_reward_state()
+        return goal_reward
+    if timedout:
+        reset_reward_state()
+        return time_step_penalty
+
+    if _prev_distance is None:
+        _prev_distance = distance_from_goal
+    reward = reward_scale * (_prev_distance - distance_from_goal)
+    _prev_distance = distance_from_goal
+    return reward
+
+
+def reward_function_progress_with_stalling(goal_reached, timedout, distance_from_goal,
+                                           goal_reward=GOAL_REWARD,
+                                           time_step_penalty=TIME_STEP_PENALTY,
+                                           reward_scale=1.0, min_distance_delta=0.01,
+                                           stall_penalty=-1, stall_threshold=5):
+    # Like progress_distance, but also penalizes "stalling": when too many
+    # consecutive steps make little progress, apply stall_penalty.
+    global _prev_distance, _stall_counter
+    if goal_reached and not timedout:
+        reset_reward_state()
+        return goal_reward
+    if timedout:
+        reset_reward_state()
+        return time_step_penalty
+
+    if _prev_distance is None:
+        _prev_distance = distance_from_goal
+    delta = _prev_distance - distance_from_goal
+    _prev_distance = distance_from_goal
+
+    if delta < min_distance_delta:
+        _stall_counter += 1
+    else:
+        _stall_counter = 0
+
+    if _stall_counter >= stall_threshold:
+        _stall_counter = 0
+        return stall_penalty
+
+    return reward_scale * delta
+
+
+def reward_function_speed_stalling(goal_reached, timedout, distance_from_goal, ball_speed,
+                                   goal_reward=GOAL_REWARD,
+                                   time_step_penalty=TIME_STEP_PENALTY,
+                                   reward_scale=1.0, min_distance_delta=0.01,
+                                   stall_penalty=-1, stall_threshold=5,
+                                   goal_zone_radius=1.0, speed_scale=0.01,
+                                   speed_threshold=0.0):
+    # Builds on progress_with_stalling and adds a penalty for moving too fast
+    # once the ball is inside the goal zone (encourages slowing near the goal).
+    reward = reward_function_progress_with_stalling(
+        goal_reached, timedout, distance_from_goal,
+        goal_reward, time_step_penalty,
+        reward_scale, min_distance_delta, stall_penalty, stall_threshold)
+
+    if distance_from_goal <= goal_zone_radius:
+        reward -= speed_scale * max(0.0, ball_speed - speed_threshold)
+
+    return reward
+
+
+# ---------------------------------------------------------------------------
+# Reward dispatch
+# ---------------------------------------------------------------------------
+# Maps the name read from the config file (game -> reward_function) to the
+# matching reward function defined above. "simple" is an alias for the basic
+# timeout-penalty reward (matches the reference "simple" reward engine).
+REWARD_FUNCTIONS = {
+    "simple": reward_function_timeout_penalty,
+    "timeout_penalty": reward_function_timeout_penalty,
+    "goal_distance": reward_function_goal_distance,
+    "progress_distance": reward_function_progress_distance,
+    "progress_with_stalling": reward_function_progress_with_stalling,
+    "speed_stalling": reward_function_speed_stalling,
+}
+
+# Reward functions that don't take a distance argument.
+_DISTANCE_FREE_REWARDS = {"simple", "timeout_penalty"}
+
+
+def compute_reward(name, goal_reached, timedout, distance_from_goal,
+                   ball_speed=0.0, params=None):
+    """Run the reward function selected by `name` (from the config file).
+
+    distance_from_goal comes from the Unity step response; ball_speed is only
+    used by the speed_stalling reward. `params` is the dict read from
+    `game -> reward_params` in the config; only the keys a given reward
+    function accepts are forwarded to it.
+    """
+    if name not in REWARD_FUNCTIONS:
+        raise ValueError(
+            f"Unknown reward function: {name}. "
+            f"Available: {list(REWARD_FUNCTIONS)}"
+        )
+
+    fn = REWARD_FUNCTIONS[name]
+    params = params or {}
+    # Forward only the parameters this reward function actually declares.
+    accepted = inspect.signature(fn).parameters
+    kwargs = {k: v for k, v in params.items() if k in accepted}
+
+    if name in _DISTANCE_FREE_REWARDS:
+        return fn(goal_reached, timedout, **kwargs)
+
+    if name == "speed_stalling":
+        return fn(goal_reached, timedout, distance_from_goal, ball_speed, **kwargs)
+
+    return fn(goal_reached, timedout, distance_from_goal, **kwargs)
 
 
 class ActionSpace:
@@ -44,6 +211,15 @@ class Maze3D:
         self.action_space = ActionSpace()
         self.fps = 60
         self.done = False
+        # Which reward function to use, read from the config file
+        # (game -> reward_function). Defaults to the basic timeout penalty.
+        self.reward_function_name = self.config.get('game', {}).get(
+            'reward_function', 'timeout_penalty')
+        # Reward tuning parameters (game -> reward_params); forwarded to the
+        # selected reward function. Empty dict => use the function defaults.
+        self.reward_params = self.config.get('game', {}).get('reward_params') or {}
+        print("Using reward function:", self.reward_function_name)
+        print("Reward params:", self.reward_params)
         self.set_host()
         self.send_config()
         self.agent_ready()
@@ -116,6 +292,8 @@ class Maze3D:
 
     def reset(self,type):
         # print("reset")
+        # clear state used by the progress-based reward functions
+        reset_reward_state()
         start_time = time.time()
         if type == 'train':
             res = self.send("/reset")
@@ -184,7 +362,12 @@ class Maze3D:
         agent_action = res['agent_action']
         duration_pause = res['duration_pause']
         internet_pause = delay - duration_pause - action_duration
-        reward = reward_function_timeout_penalty(self.done, timed_out)
+        # distance to the goal is computed by the Unity environment and sent
+        # back in the step response; ball speed is derived from the observation
+        distance_from_goal = res.get('distance_from_goal', 0.0)
+        ball_speed = get_ball_speed(self.observation)
+        reward = compute_reward(self.reward_function_name, self.done, timed_out,
+                                distance_from_goal, ball_speed, self.reward_params)
 
         return self.observation, reward, self.done, fps, duration_pause, [agent_action, human_action], internet_pause
 

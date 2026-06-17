@@ -74,7 +74,8 @@ class Experiment:
         
         self.second_human = config['game']['second_human'] if 'game' in config.keys() else None
         
-        self.games_per_block = config['Experiment'][self.mode]['games_per_block']
+        self.train_games_per_block = config['Experiment'][self.mode]['train_games_per_block']
+        self.test_games_per_block = config['Experiment'][self.mode]['test_games_per_block']
 
         self.popup_window_time = config['GUI']['popup_window_time']
 
@@ -133,18 +134,18 @@ class Experiment:
             if self.config['Experiment'][self.mode]['test_block'] == True:
                 print("Test Block: ", i_block)
                 test_block_metrics_dict['block_'+str(i_block)] = {}
-                test_block_metrics_dict = self.maze_game(test_block_metrics_dict,'block_'+str(i_block),int(self.games_per_block), i_block,'test')
+                test_block_metrics_dict = self.maze_game(test_block_metrics_dict,'block_'+str(i_block),int(self.test_games_per_block), i_block,'test')
 
             if self.config['Experiment'][self.mode]['training_block'] == True:
                 print("Train Block: ", i_block)
                 train_block_metrics_dict['block_'+str(i_block)] = {}
-                train_block_metrics_dict = self.maze_game(train_block_metrics_dict,'block_'+str(i_block),int(self.games_per_block), i_block,'train')
+                train_block_metrics_dict = self.maze_game(train_block_metrics_dict,'block_'+str(i_block),int(self.train_games_per_block), i_block,'train')
 
         # Final Testing block
         if self.config['Experiment'][self.mode]['extra_test_block'] == True:
             print("Test Block: ", self.max_blocks)
             test_block_metrics_dict['block_'+str(self.max_blocks)] = {}
-            test_block_metrics_dict = self.maze_game(test_block_metrics_dict,'block_'+str(self.max_blocks),int(self.games_per_block), self.max_blocks,'test')
+            test_block_metrics_dict = self.maze_game(test_block_metrics_dict,'block_'+str(self.max_blocks),int(self.test_games_per_block), self.max_blocks,'test')
         
 
         # Save to pickle file
@@ -169,15 +170,15 @@ class Experiment:
         for i_block in range(self.max_blocks):
             print("Test Block: ", i_block)
             test_block_metrics_dict['block_'+str(i_block)] = {}
-            test_block_metrics_dict = self.maze_two_agents(test_block_metrics_dict,'block_'+str(i_block),int(self.games_per_block/2), i_block,'test')
+            test_block_metrics_dict = self.maze_two_agents(test_block_metrics_dict,'block_'+str(i_block),int(self.test_games_per_block), i_block,'test')
             print("Train Block: ", i_block)
             train_block_metrics_dict['block_'+str(i_block)] = {}
-            train_block_metrics_dict = self.maze_two_agents(train_block_metrics_dict,'block_'+str(i_block),int(self.games_per_block/2), i_block,'train')
+            train_block_metrics_dict = self.maze_two_agents(train_block_metrics_dict,'block_'+str(i_block),int(self.train_games_per_block), i_block,'train')
 
         # Final Testing block
         print("Test Block: ", self.max_blocks)
         test_block_metrics_dict['block_'+str(self.max_blocks)] = {}
-        test_block_metrics_dict = self.maze_game(test_block_metrics_dict,'block_'+str(self.max_blocks),int(self.games_per_block/2), self.max_blocks,'test')
+        test_block_metrics_dict = self.maze_game(test_block_metrics_dict,'block_'+str(self.max_blocks),int(self.test_games_per_block), self.max_blocks,'test')
         
         # Save to pickle file
         self.save_pickle(self.participant_name, train_block_metrics_dict, game_mode = 'train')
@@ -200,7 +201,7 @@ class Experiment:
         for i_block in range(self.max_blocks):
 
             block_metrics_dict['block_'+str(i_block)] = {}
-            block_metrics_dict = self.maze_only_agent(block_metrics_dict,'block_'+str(i_block),self.games_per_block, i_block)
+            block_metrics_dict = self.maze_only_agent(block_metrics_dict,'block_'+str(i_block),self.train_games_per_block, i_block)
 
         # Save to pickle file
         self.save_pickle(self.participant_name, block_metrics_dict)
@@ -208,7 +209,7 @@ class Experiment:
     def mz_eval(self,participant_name):
         block_metrics_dict = {}
         block_metrics_dict['eval_block'] = {} 
-        block_metrics_dict = self.maze_game(block_metrics_dict,'eval_block',self.games_per_block, 0,'test')
+        block_metrics_dict = self.maze_game(block_metrics_dict,'eval_block',self.test_games_per_block, 0,'test')
 
         # Save to pickle file
         self.save_pickle(self.participant_name, block_metrics_dict)
@@ -220,7 +221,7 @@ class Experiment:
 
         for i_block in range(self.max_blocks):
             block_metrics_dict['block_'+str(i_block)] = {} 
-            block_metrics_dict = self.maze_only_human(block_metrics_dict,'block_'+str(i_block),self.games_per_block, i_block,'train')
+            block_metrics_dict = self.maze_only_human(block_metrics_dict,'block_'+str(i_block),self.train_games_per_block, i_block,'train')
 
         # Save to pickle file
         self.save_pickle(self.participant_name, block_metrics_dict)
@@ -392,7 +393,7 @@ class Experiment:
         block_metrics_dict[block_name]['rewards'] = rewards_history
         block_metrics_dict[block_name]['states'] = state_history
         block_metrics_dict[block_name]['game_score'] = game_score_history
-        block_metrics_dict[block_name]['win_loss'] = [train_game_success_counter,self.games_per_block-train_game_success_counter]
+        block_metrics_dict[block_name]['win_loss'] = [train_game_success_counter,max_games-train_game_success_counter]
         block_metrics_dict[block_name]['done'] = done_history
 
         # if game_mode == 'train':
@@ -574,7 +575,7 @@ class Experiment:
         block_metrics_dict[block_name]['rewards'] = rewards_history
         block_metrics_dict[block_name]['states'] = state_history
         block_metrics_dict[block_name]['game_score'] = game_score_history
-        block_metrics_dict[block_name]['win_loss'] = [train_game_success_counter,self.games_per_block-train_game_success_counter]
+        block_metrics_dict[block_name]['win_loss'] = [train_game_success_counter,max_games-train_game_success_counter]
         block_metrics_dict[block_name]['done'] = done_history
 
         # if game_mode == 'train':
@@ -748,7 +749,7 @@ class Experiment:
         block_metrics_dict[block_name]['rewards'] = rewards_history
         block_metrics_dict[block_name]['states'] = state_history
         block_metrics_dict[block_name]['game_score'] = game_score_history
-        block_metrics_dict[block_name]['win_loss'] = [train_game_success_counter,self.games_per_block-train_game_success_counter]
+        block_metrics_dict[block_name]['win_loss'] = [train_game_success_counter,max_games-train_game_success_counter]
         block_metrics_dict[block_name]['done'] = done_history
 
         if game_mode == 'train':
@@ -893,7 +894,7 @@ class Experiment:
         block_metrics_dict[block_name]['rewards'] = rewards_history
         block_metrics_dict[block_name]['states'] = state_history
         block_metrics_dict[block_name]['game_score'] = game_score_history
-        block_metrics_dict[block_name]['win_loss'] = [train_game_success_counter,self.games_per_block-train_game_success_counter]
+        block_metrics_dict[block_name]['win_loss'] = [train_game_success_counter,max_games-train_game_success_counter]
         block_metrics_dict[block_name]['done'] = done_history
 
         

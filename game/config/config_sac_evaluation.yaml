@@ -12,6 +12,11 @@ game:
     human_only: False
     two_humans: False
 
+    # Reward function used by the environment (maze3D_new/Maze3DEnvRemote.py).
+    # Options: timeout_penalty, goal_distance, progress_distance,
+    #          progress_with_stalling, speed_stalling
+    reward_function: timeout_penalty
+
     # input speed as translated by the game
     human_speed: 50
     agent_speed: 50
@@ -66,7 +71,8 @@ Experiment:
 
   eval:
     max_blocks: 1  # max training games per experiment
-    games_per_block: 10
+    train_games_per_block: 10
+    test_games_per_block: 10
     max_duration: 40  # max duration per game in seconds
     buffer_memory_size: 3500
     action_duration: 0.2 # Time duration in sec between consecutive RL agent actions
